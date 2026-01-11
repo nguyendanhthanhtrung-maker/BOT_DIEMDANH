@@ -28,14 +28,30 @@ def check_time():
 
 @bot.message_handler(func=lambda message: message.from_user.id == MY_ID)
 def handle_commands(message):
-    if not check_time():
-        bot.reply_to(message, "🚫 Ngoài giờ hoạt động (06:00 - 12:00).")
-        return
-
     text = message.text
     tz = pytz.timezone('Asia/Ho_Chi_Minh')
     today = datetime.now(tz).strftime("%d/%m/%Y")
     
+    # --- LỆNH START (HƯỚNG DẪN) ---
+    if text == '/start':
+        help_text = (
+            "👋 Chào chủ nhân! Đây là danh sách lệnh của bạn:\n\n"
+            "📅 **Lệnh hằng ngày (6h - 12h):**\n"
+            "/cong : Điểm danh cộng 30,000đ\n"
+            "/tru : Khấu trừ 10,000đ\n"
+            "*(Lưu ý: Chỉ được chọn 1 trong 2 lệnh trên mỗi ngày)*\n\n"
+            "💰 **Quản lý ví:**\n"
+            "/sodu : Xem số dư hiện tại\n"
+            "/rut [số tiền] : Rút tiền tùy ý (Ví dụ: /rut 50000)"
+        )
+        bot.reply_to(message, help_text, parse_mode="Markdown")
+        return
+
+    # Kiểm tra giờ hoạt động cho các lệnh tính toán
+    if not check_time():
+        bot.reply_to(message, "🚫 Hiện tại ngoài giờ hoạt động (06:00 - 12:00).")
+        return
+
     # Đọc dữ liệu từ Sheets
     current_balance = int(sheet.acell('B1').value or 0)
     last_date = sheet.acell('B2').value
