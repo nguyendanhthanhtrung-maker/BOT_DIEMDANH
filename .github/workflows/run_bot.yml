@@ -1,26 +1,27 @@
-name: Telegram Attendance Bot
+name: Telegram Bot
 
 on:
   schedule:
-    - cron: '0 0 * * *' # Tự động chạy mỗi ngày lúc 0h UTC
-  workflow_dispatch: # Cho phép bấm chạy thủ công
+    # 6h sáng VN là 23h đêm UTC hôm trước
+    - cron: '0 23 * * *'
+  workflow_dispatch: # Để bạn có thể bấm chạy thử ngay lập tức
 
 jobs:
-  build:
+  run-bot:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
       - name: Install dependencies
-        run: pip install -r requirements.txt
-
+        run: pip install pyTelegramBotAPI gspread oauth2client pytz
       - name: Run Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        run: python bot.py
+          G_SHEETS_JSON: ${{ secrets.G_SHEETS_JSON }}
+          TZ: "Asia/Ho_Chi_Minh"
+        # Chạy tối đa 6 tiếng (21600 giây) rồi tự tắt
+        run: timeout 21600s python bot.py || echo "Het gio lam viec, may chu da tat."
