@@ -2,14 +2,13 @@ import telebot
 import os
 import gspread
 import json
-import sys
 from datetime import datetime
 import pytz
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- CẤU HÌNH ---
 TOKEN = os.getenv('TELEGRAM_TOKEN')
-MY_ID = 7346983056  # ID Telegram của bạn
+MY_ID = 7346983056 
 G_JSON = os.getenv('G_SHEETS_JSON')
 
 # Kết nối Google Sheets
@@ -21,36 +20,62 @@ sheet = client.open("BotData").sheet1
 
 bot = telebot.TeleBot(TOKEN)
 
-def check_and_update(amount, action_name):
+def check_time():
     tz = pytz.timezone('Asia/Ho_Chi_Minh')
     now = datetime.now(tz)
-    
-    # Rào chắn giờ hoạt động: Đúng 6h sáng đến trước 12h trưa
-    if not (6 <= now.hour < 12):
-        return "🚫 Bot chỉ hoạt động từ 06:00 đến 12:00 hằng ngày."
-
-    today = now.strftime("%d/%m/%Y")
-    current_balance = int(sheet.acell('B1').value or 0)
-    last_date = sheet.acell('B2').value
-    
-    if last_date == today:
-        return f"⚠️ Hôm nay bạn đã điểm danh rồi!"
-    
-    new_balance = current_balance + amount
-    sheet.update('B1', [[new_balance]])
-    sheet.update('B2', [[today]])
-    return f"✅ Đã {action_name}.\n💰 Số dư mới: {new_balance:,} VNĐ"
+    # Hoạt động từ 6h sáng đến trước 12h trưa
+    return 6 <= now.hour < 12
 
 @bot.message_handler(func=lambda message: message.from_user.id == MY_ID)
 def handle_commands(message):
-    if message.text == '/cong':
-        bot.reply_to(message, check_and_update(30000, "cộng 30k"))
-    elif message.text == '/tru':
-        bot.reply_to(message, check_and_update(-10000, "trừ 10k"))
-    elif message.text == '/sodu':
-        val = int(sheet.acell('B1').value or 0)
-        bot.reply_to(message, f"💰 Số dư hiện tại: {val:,} VNĐ")
+    if not check_time():
+        bot.reply_to(message, "🚫 Ngoài giờ hoạt động (06:00 - 12:00).")
+        return
+
+    text = message.text
+    tz = pytz.timezone('Asia/Ho_Chi_Minh')
+    today = datetime.now(tz).strftime("%d/%m/%Y")
+    
+    # Đọc dữ liệu từ Sheets
+    current_balance = int(sheet.acell('B1').value or 0)
+    last_date = sheet.acell('B2').value
+
+    # --- LỆNH CỘNG 30K ---
+    if text == '/cong':
+        if last_date == today:
+            bot.reply_to(message, "⚠️ Hôm nay bạn đã dùng quyền cộng/trừ rồi!")
+            return
+        new_val = current_balance + 30000
+        sheet.update('B1', [[new_val]])
+        sheet.update('B2', [[today]])
+        bot.reply_to(message, f"✅ Đã cộng 30,000đ.\n💰 Ví: {new_val:,} VNĐ")
+
+    # --- LỆNH TRỪ 10K ---
+    elif text == '/tru':
+        if last_date == today:
+            bot.reply_to(message, "⚠️ Hôm nay bạn đã dùng quyền cộng/trừ rồi!")
+            return
+        new_val = current_balance - 10000
+        sheet.update('B1', [[new_val]])
+        sheet.update('B2', [[today]])
+        bot.reply_to(message, f"❌ Đã trừ 10,000đ.\n💰 Ví: {new_val:,} VNĐ")
+
+    # --- LỆNH RÚT TIỀN TÙY CHỈNH ---
+    elif text.startswith('/rut'):
+        try:
+            val_rut = int(text.split()[1])
+            if val_rut > current_balance:
+                bot.reply_to(message, f"❌ Không đủ tiền! (Hiện có {current_balance:,}đ)")
+                return
+            new_val = current_balance - val_rut
+            sheet.update('B1', [[new_val]])
+            bot.reply_to(message, f"💸 Đã rút {val_rut:,}đ.\n💰 Còn lại: {new_val:,} VNĐ")
+        except (IndexError, ValueError):
+            bot.reply_to(message, "⚠️ Cách dùng: `/rut 50000`", parse_mode="Markdown")
+
+    # --- XEM SỐ DƯ ---
+    elif text == '/sodu':
+        bot.reply_to(message, f"💰 Số dư hiện tại: {current_balance:,} VNĐ")
 
 if __name__ == "__main__":
-    print("Bot đang chờ lệnh trong khung giờ 6h-12h...")
     bot.infinity_polling()
